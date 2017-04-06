@@ -49,7 +49,7 @@ void manageinputs()
     cursor_y -= 1;
   else if (gb.buttons.repeat(BTN_DOWN, 1))
     cursor_y += 1;
-  else if (gb.buttons.repeat(BTN_LEFT, 1))
+  if (gb.buttons.repeat(BTN_LEFT, 1))
     cursor_x -= 1;
   else if (gb.buttons.repeat(BTN_RIGHT, 1))
     cursor_x += 1;
