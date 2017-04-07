@@ -2,28 +2,48 @@
 #include <Gamebuino.h>
 Gamebuino gb;
 
-int ball_x = LCDWIDTH/2; //set the horizontal position to the middle of the screen
-int ball_y = LCDHEIGHT/2; //vertical position
-int ball_vx = 1; //horizontal velocity
-int ball_vy = 1; //vertical velocity
-int ball_size = 2; //the size of the ball in number of pixels
+struct ball_t {
+  int x;
+  int y;
+  int vx;
+  int vy;
+};
+#define MAXBALLS 15
+#define BALLSIZE 2
 
-int cursor_s = 3;
-int cursor_x = LCDWIDTH/2 - (cursor_s - 1);
-int cursor_y = LCDHEIGHT/2;
-bool cursor_h = true;
+struct cursor_t {
+  int x;
+  int y;
+  bool h;
+};
+cursor_t cursor;
+#define CURSORSIZE 3
 
-int board_x = 0;
-int board_y = 0;
-int board_w = LCDWIDTH;
-int board_h = LCDHEIGHT;
+struct board_t {
+  int x;
+  int y;
+  int w;
+  int h;
+  ball_t **balls;
+  int nbballs;
+};
+board_t **boards;
+int nbboards;
 
 #define LINEIDLE      0
 #define LINEEXPANDING 1
-uint8_t linestate = LINEIDLE;
-bool line_h = true;
-int line_x, line_y;
-int line_width = 0;
+
+struct line_t {
+  uint8_t state;
+  int x;
+  int y;
+  int l;
+  bool h;
+  int board;
+};
+line_t line;
+
+int score = 0;
 
 const uint8_t logo[] PROGMEM =
 {
@@ -62,147 +82,239 @@ const uint8_t logo[] PROGMEM =
 
 void setup()
 {
+  Serial.begin(9600);
+
   gb.begin();
   gb.titleScreen(F("JezzBall"), logo);
   gb.display.persistence = false;
+
+  ball_t **balls = (ball_t **)malloc(MAXBALLS * sizeof(ball_t *));
+  memset(balls, 0, sizeof(balls));
+  balls[0] = (ball_t *)malloc(sizeof(ball_t));
+  *(balls[0]) = { LCDWIDTH/2, LCDHEIGHT/2, 1, 1 };
+  balls[1] = (ball_t *)malloc(sizeof(ball_t));
+  *(balls[1]) = { LCDWIDTH/4, LCDHEIGHT/4, -1, 1 };
+
+  //each board has at least one ball
+  //there cannot be more boards than balls
+  boards = (board_t **)malloc(MAXBALLS * sizeof(board_t *));
+  nbboards = 1;
+  memset(boards, 0, sizeof(boards));
+  boards[0] = (board_t *)malloc(sizeof(board_t));
+  *(boards[0]) = {0, 0, LCDWIDTH, LCDHEIGHT, balls, 2};
+
+  cursor = { LCDWIDTH/2 - (CURSORSIZE - 1), LCDHEIGHT/2 };
+  line = { LINEIDLE, 0, 0, 0, 0, 0};
 }
 
 void draw()
 {
+  int i, j;
   gb.display.fillScreen(BLACK);
-  //board
+  //boards
   gb.display.setColor(WHITE);
-  gb.display.fillRect(board_x, board_y, board_w, board_h);
+  for (i = 0 ; i < nbboards ; i++)
+    gb.display.fillRect(boards[i]->x, boards[i]->y, boards[i]->w, boards[i]->h);
   //line
   gb.display.setColor(BLACK);
-  if (linestate == LINEEXPANDING)
+  if (line.state == LINEEXPANDING)
   {
-    if (line_h)
+    if (line.h)
     {
-      int pos = constrain(line_x - line_width, 0, LCDWIDTH - 1);
-      int width = constrain(2 * line_width + 1, 0, LCDWIDTH);
-      gb.display.drawFastHLine(pos, line_y, width);
+      int pos = constrain(line.x - line.l, 0, LCDWIDTH - 1);
+      int width = constrain(2 * line.l + 1, 0, LCDWIDTH);
+      gb.display.drawFastHLine(pos, line.y, width);
     }
     else
     {
-      int pos = constrain(line_y - line_width, 0, LCDHEIGHT - 1);
-      int width = constrain(2 * line_width + 1, 0, LCDHEIGHT);
-      gb.display.drawFastVLine(line_x, pos, width);
+      int pos = constrain(line.y - line.l, 0, LCDHEIGHT - 1);
+      int width = constrain(2 * line.l + 1, 0, LCDHEIGHT);
+      gb.display.drawFastVLine(line.x, pos, width);
     }
   }
   //cursor
   gb.display.setColor(INVERT);
-  if (cursor_h)
-    gb.display.drawFastHLine(cursor_x - (cursor_s/2), cursor_y, cursor_s);
+  if (cursor.h)
+    gb.display.drawFastHLine(cursor.x - (CURSORSIZE/2), cursor.y, CURSORSIZE);
   else
-    gb.display.drawFastVLine(cursor_x, cursor_y - (cursor_s/2), cursor_s);
+    gb.display.drawFastVLine(cursor.x, cursor.y - (CURSORSIZE/2), CURSORSIZE);
   //balls
   gb.display.setColor(BLACK);
-  gb.display.fillRect(ball_x, ball_y, ball_size, ball_size);
+  for (i = 0 ; i < nbboards ; i++)
+  {
+    for (j = 0 ; j < boards[i]->nbballs ; j++)
+      gb.display.fillRect(boards[i]->balls[j]->x, boards[i]->balls[j]->y, BALLSIZE, BALLSIZE);
+  }
 }
 
 void manageinputs()
 {
   if (gb.buttons.pressed(BTN_A))
-    cursor_h = !cursor_h;
+    cursor.h = !cursor.h;
   if (gb.buttons.pressed(BTN_B))
   {
-    linestate = LINEEXPANDING;
-    line_x = cursor_x;
-    line_y = cursor_y;
-    line_h = cursor_h;
-    line_width = 0;
+    int i;
+    for (i = 0 ; i < nbboards ; i++)
+    {
+      if (gb.collidePointRect(cursor.x, cursor.y, boards[i]->x, boards[i]->y, boards[i]->w, boards[i]->h))
+      {
+        line.state = LINEEXPANDING;
+        line.x = cursor.x;
+        line.y = cursor.y; 
+        line.l = 0;
+        line.h = cursor.h;
+        line.board = i;
+        break;
+      }
+    }
   }
   if (gb.buttons.repeat(BTN_UP, 1))
-    cursor_y -= 1;
+    cursor.y -= 1;
   else if (gb.buttons.repeat(BTN_DOWN, 1))
-    cursor_y += 1;
+    cursor.y += 1;
   if (gb.buttons.repeat(BTN_LEFT, 1))
-    cursor_x -= 1;
+    cursor.x -= 1;
   else if (gb.buttons.repeat(BTN_RIGHT, 1))
-    cursor_x += 1;
+    cursor.x += 1;
 
-  cursor_x = constrain(cursor_x, 0, LCDWIDTH - 1);
-  cursor_y = constrain(cursor_y, 0, LCDHEIGHT - 1);
+  cursor.x = constrain(cursor.x, 0, LCDWIDTH - 1);
+  cursor.y = constrain(cursor.y, 0, LCDHEIGHT - 1);
 }
-/*
- * ---H
- * 
- * --y+h
- * 
- * --ly
- * 
- * --y
- * 
- * ---*
- */
+
 void updategame()
 {
-  ball_x = ball_x + ball_vx;
-  ball_y = ball_y + ball_vy;
-
-  if (ball_x < board_x)
+  int i, j;
+  ball_t *ball;
+  //move balls
+  for (i = 0 ; i < nbboards ; i++)
   {
-    ball_vx = -ball_vx;
-    gb.sound.playTick();
-  }
-  else if ((ball_x + ball_size) > board_x + board_w)
-  {
-    ball_vx = -ball_vx;
-    gb.sound.playTick();
-  }
-  if (ball_y < board_y)
-  {
-    ball_vy = -ball_vy;
-    gb.sound.playTick();
-  }
-  else if ((ball_y + ball_size) > board_y + board_h)
-  {
-    ball_vy = -ball_vy;
-    gb.sound.playTick();
-  }
-
-  if (linestate == LINEEXPANDING)
-  {
-    line_width++;
-
-    if ((line_h && line_y >= ball_y && line_y <= ball_y + ball_size && ball_x > line_x - line_width && ball_x < line_x + line_width) ||
-      (!line_h && line_x >= ball_x && line_x <= ball_x + ball_size && ball_y > line_y - line_width && ball_y < line_y + line_width))
+    for (j = 0 ; j < boards[i]->nbballs ; j++)
     {
-      //lose life
-      ///if no life : game over
-      linestate = LINEIDLE;
-    }
-    else if (line_h && line_x - line_width <= board_x && line_x + line_width >= board_x + board_w)
-    {
-      if (line_y > board_y && line_y < board_y + board_h)
+      ball = boards[i]->balls[j];
+      ball->x = ball->x + ball->vx;
+      ball->y = ball->y + ball->vy;
+
+      //bouncings with board
+      if (ball->x < boards[i]->x)
       {
-        if (ball_y > line_y)
+       ball->vx = -ball->vx;
+        gb.sound.playTick();
+      }
+      else if ((ball->x + BALLSIZE) > boards[i]->x + boards[i]->w)
+      {
+        ball->vx = -ball->vx;
+        gb.sound.playTick();
+      }
+      if (ball->y < boards[i]->y)
+      {
+        ball->vy = -ball->vy;
+        gb.sound.playTick();
+      }
+      else if ((ball->y + BALLSIZE) > boards[i]->y + boards[i]->h)
+      {
+        ball->vy = -ball->vy;
+        gb.sound.playTick();
+      }
+    }
+  }
+
+  if (line.state == LINEEXPANDING)
+  {
+    line.l++;
+
+    //check collision with a ball
+    int i;
+    for (i = 0 ; i < boards[line.board]->nbballs ; i++)
+    {
+      if ((line.h && gb.collideRectRect(line.x - line.l, line.y, 2 * line.l + 1, 1, boards[line.board]->balls[i]->x, boards[line.board]->balls[i]->y, BALLSIZE, BALLSIZE)) || 
+        (!line.h && gb.collideRectRect(line.x, line.y - line.l, 1, 2 * line.l + 1, boards[line.board]->balls[i]->x, boards[line.board]->balls[i]->y, BALLSIZE, BALLSIZE)))
+      {
+        //lose life
+        ///if no life : game over
+        line.state = LINEIDLE;
+        return;
+      }
+    }
+
+    ball_t **tempballs = boards[line.board]->balls;
+    int tempnbballs = boards[line.board]->nbballs;
+    board_t *newboard;
+
+    //finished horizontal line
+    if (line.h && line.x - line.l <= boards[line.board]->x && line.x + line.l >= boards[line.board]->x + boards[line.board]->w)
+    {
+      newboard = (board_t *)malloc(sizeof(board_t));
+      newboard->x = boards[line.board]->x;
+      newboard->y = line.y + 1;
+      newboard->w = boards[line.board]->w;
+      newboard->h = boards[line.board]->h + boards[line.board]->y - line.y - 1;
+      newboard->balls = (ball_t **)malloc(MAXBALLS * sizeof(ball_t *));
+      newboard->nbballs = 0;
+
+      boards[line.board]->x = boards[line.board]->x;
+      boards[line.board]->y = boards[line.board]->y;
+      boards[line.board]->w = boards[line.board]->w;
+      boards[line.board]->h = line.y - boards[line.board]->y;
+      boards[line.board]->balls = (ball_t **)malloc(MAXBALLS * sizeof(ball_t *));
+      boards[line.board]->nbballs = 0;
+    }
+    //finished vertical line
+    else if (!line.h && line.y - line.l <= boards[line.board]->y && line.y + line.l >= boards[line.board]->y + boards[line.board]->h)
+    {
+      newboard = (board_t *)malloc(sizeof(board_t));
+      newboard->x = line.x + 1;
+      newboard->y = boards[line.board]->y;
+      newboard->w = boards[line.board]->w + boards[line.board]->x - line.x - 1;
+      newboard->h = boards[line.board]->h;
+      newboard->balls = (ball_t **)malloc(MAXBALLS * sizeof(ball_t *));
+      newboard->nbballs = 0;
+
+      boards[line.board]->x = boards[line.board]->x;
+      boards[line.board]->y = boards[line.board]->y;
+      boards[line.board]->w = line.x - boards[line.board]->x;
+      boards[line.board]->h = boards[line.board]->h;
+      boards[line.board]->balls = (ball_t **)malloc(MAXBALLS * sizeof(ball_t *));
+      boards[line.board]->nbballs = 0;
+    }
+    //line not finished
+    else
+      return;
+
+    for (i = 0 ; i < tempnbballs ; i++)
+    {
+        if (gb.collideRectRect(boards[line.board]->x, boards[line.board]->y, boards[line.board]->w, boards[line.board]->h, 
+          tempballs[i]->x, tempballs[i]->y, BALLSIZE, BALLSIZE))
         {
-          board_h = board_h + board_y - line_y - 1;
-          board_y = line_y + 1;
+          boards[line.board]->balls[boards[line.board]->nbballs] = tempballs[i];
+          boards[line.board]->nbballs++;
         }
         else
-          board_h = line_y - board_y;
-      }
-      //update score
-      linestate = LINEIDLE;
-    }
-    else if (!line_h && line_y - line_width <= board_y && line_y + line_width >= board_y + board_h)
-    {
-      if (line_x > board_x && line_x < board_x + board_w)
-      {
-        if (ball_x > line_x)
         {
-          board_w = board_w + board_x - line_x - 1;
-          board_x = line_x + 1;
+          newboard->balls[newboard->nbballs] = tempballs[i];
+          newboard->nbballs++;
         }
-        else
-          board_w = line_x - board_x;
-      }
-      //update score
-      linestate = LINEIDLE;
     }
+    free(tempballs);
+    if (newboard->nbballs == 0)
+    {
+      score += newboard->w * newboard->h;
+      free(newboard->balls);
+      free(newboard);
+    }
+    else if (boards[line.board]->nbballs == 0)
+    {
+      score += boards[line.board]->w * boards[line.board]->h;
+      free(boards[line.board]->balls);
+      free(boards[line.board]);
+      boards[line.board] = newboard;
+    }
+    else
+    {
+      boards[nbboards] = newboard;
+      nbboards++;
+    }
+
+    line.state = LINEIDLE;
   }
 }
 
