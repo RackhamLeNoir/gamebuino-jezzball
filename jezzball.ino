@@ -4,6 +4,7 @@
 Gamebuino gb;
 
 extern const byte font5x7[];
+extern const byte font3x5[];
 
 struct ball_t {
   int x;
@@ -48,6 +49,11 @@ line_t line;
 
 int score = 0;
 int lives = 5;
+int numballs = 0;
+int levelscore = 0;
+#define BOARDWIDTH (LCDWIDTH - 22)
+#define BOARDHEIGHT LCDHEIGHT
+
 
 const uint8_t logo[] PROGMEM =
 {
@@ -84,37 +90,76 @@ const uint8_t logo[] PROGMEM =
   B00000000, B00000000, B00000000, B00000000, B00000000, B00000000, B00000000, B00000000,
 };
 
-void setup()
+void preparelevel()
 {
-  Serial.begin(9600);
-
-  gb.begin();
-  gb.titleScreen(F("JezzBall"), logo);
-  gb.display.persistence = false;
-
-  ball_t **balls = (ball_t **)malloc(MAXBALLS * sizeof(ball_t *));
+  if (numballs < MAXBALLS)
+    numballs++;
+  levelscore = 0;
+     
+  ball_t **balls = (ball_t **)malloc(numballs * sizeof(ball_t *));
   memset(balls, 0, sizeof(balls));
-  balls[0] = (ball_t *)malloc(sizeof(ball_t));
-  *(balls[0]) = { LCDWIDTH/2, LCDHEIGHT/2, 1, 1 };
-  balls[1] = (ball_t *)malloc(sizeof(ball_t));
-  *(balls[1]) = { LCDWIDTH/4, LCDHEIGHT/4, -1, 1 };
+  int i;
+  for (i = 0 ; i < numballs ; i++)
+  {
+    balls[i] = (ball_t *)malloc(sizeof(ball_t));
+    *(balls[i]) = { (int)random(BOARDWIDTH) - BALLSIZE, (int)random(BOARDHEIGHT) - BALLSIZE, 1, 1 };
+  }
 
   //each board has at least one ball
   //there cannot be more boards than balls
-  boards = (board_t **)malloc(MAXBALLS * sizeof(board_t *));
+  boards = (board_t **)malloc(numballs * sizeof(board_t *));
   nbboards = 1;
   memset(boards, 0, sizeof(boards));
   boards[0] = (board_t *)malloc(sizeof(board_t));
-  *(boards[0]) = {0, 0, LCDWIDTH, LCDHEIGHT, balls, 2};
+  *(boards[0]) = {0, 0, BOARDWIDTH, BOARDHEIGHT, balls, numballs};
 
-  cursor = { LCDWIDTH/2 - (CURSORSIZE - 1), LCDHEIGHT/2 };
+  cursor = { BOARDWIDTH/2 - (CURSORSIZE - 1), BOARDHEIGHT/2 };
   line = { LINEIDLE, 0, 0, 0, 0, 0};
+}
+
+void setup()
+{
+  gb.begin();
+  gb.titleScreen(F("JezzBall"), logo);
+  //gb.display.persistence = false;
+  gb.pickRandomSeed();
+
+  preparelevel();
+}
+
+int numlength(int number)
+{
+  if (number == 0)
+    return 1;
+  else if (number > 0)
+    return floor(log10(number)) + 1;
+  return floor(log10(number)) + 2;
 }
 
 void draw()
 {
   int i, j;
   gb.display.fillScreen(BLACK);
+  //sidebar
+  gb.display.setColor(WHITE);
+  gb.display.fillRect(LCDWIDTH - 21, 0, 21, LCDHEIGHT);
+  gb.display.setColor(BLACK);
+  gb.display.cursorX = LCDWIDTH - 20;
+  gb.display.cursorY = 5;
+  gb.display.setFont(font3x5);
+  gb.display.println("Score");
+  gb.display.cursorX = LCDWIDTH - 4 * numlength(score);
+  gb.display.println(score);
+  gb.display.cursorX = LCDWIDTH - 20;
+  gb.display.cursorY = 20;
+  for (i = 0 ; i < lives ; i++)
+    gb.display.print("\03");
+  unsigned long percent = (unsigned long)levelscore * 100 / (BOARDWIDTH * BOARDHEIGHT);
+  gb.display.cursorX = LCDWIDTH - 4 * (numlength(percent) + 1);
+  gb.display.cursorY = 30;
+  gb.display.print(percent);
+  gb.display.print("%");
+
   //boards
   gb.display.setColor(WHITE);
   for (i = 0 ; i < nbboards ; i++)
@@ -253,14 +298,14 @@ void updategame()
       newboard->y = line.y + 1;
       newboard->w = boards[line.board]->w;
       newboard->h = boards[line.board]->h + boards[line.board]->y - line.y - 1;
-      newboard->balls = (ball_t **)malloc(MAXBALLS * sizeof(ball_t *));
+      newboard->balls = (ball_t **)malloc(numballs * sizeof(ball_t *));
       newboard->nbballs = 0;
 
       boards[line.board]->x = boards[line.board]->x;
       boards[line.board]->y = boards[line.board]->y;
       boards[line.board]->w = boards[line.board]->w;
       boards[line.board]->h = line.y - boards[line.board]->y;
-      boards[line.board]->balls = (ball_t **)malloc(MAXBALLS * sizeof(ball_t *));
+      boards[line.board]->balls = (ball_t **)malloc(numballs * sizeof(ball_t *));
       boards[line.board]->nbballs = 0;
     }
     //finished vertical line
@@ -271,14 +316,14 @@ void updategame()
       newboard->y = boards[line.board]->y;
       newboard->w = boards[line.board]->w + boards[line.board]->x - line.x - 1;
       newboard->h = boards[line.board]->h;
-      newboard->balls = (ball_t **)malloc(MAXBALLS * sizeof(ball_t *));
+      newboard->balls = (ball_t **)malloc(numballs * sizeof(ball_t *));
       newboard->nbballs = 0;
 
       boards[line.board]->x = boards[line.board]->x;
       boards[line.board]->y = boards[line.board]->y;
       boards[line.board]->w = line.x - boards[line.board]->x;
       boards[line.board]->h = boards[line.board]->h;
-      boards[line.board]->balls = (ball_t **)malloc(MAXBALLS * sizeof(ball_t *));
+      boards[line.board]->balls = (ball_t **)malloc(numballs * sizeof(ball_t *));
       boards[line.board]->nbballs = 0;
     }
     //line not finished
@@ -303,18 +348,30 @@ void updategame()
     if (newboard->nbballs == 0)
     {
       score += newboard->w * newboard->h;
+      levelscore += newboard->w * newboard->h;
       free(newboard->balls);
       free(newboard);
     }
     else if (boards[line.board]->nbballs == 0)
     {
       score += boards[line.board]->w * boards[line.board]->h;
+      levelscore += boards[line.board]->w * boards[line.board]->h;
       free(boards[line.board]->balls);
       free(boards[line.board]);
       boards[line.board] = newboard;
     }
     else
     {
+      if (line.h)
+      {
+        score += boards[line.board]->w;
+        levelscore += boards[line.board]->w;
+      }
+      else
+      {
+        score += boards[line.board]->h;
+        levelscore += boards[line.board]->h;
+      }
       boards[nbboards] = newboard;
       nbboards++;
     }
@@ -336,7 +393,7 @@ void loop(){
       gb.display.cursorX = (LCDWIDTH - 29) / 2;
       gb.display.cursorY = 30;
       gb.display.println("Score");
-      gb.display.cursorX = (LCDWIDTH - (6*ceil(log10(score)) - 1)) / 2;
+      gb.display.cursorX = (LCDWIDTH - (6 * numlength(score) - 1)) / 2;
       gb.display.println(score);
     }
     else
