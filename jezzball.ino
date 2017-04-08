@@ -1,6 +1,9 @@
+#include <math.h>
 #include <SPI.h>
 #include <Gamebuino.h>
 Gamebuino gb;
+
+extern const byte font5x7[];
 
 struct ball_t {
   int x;
@@ -44,6 +47,7 @@ struct line_t {
 line_t line;
 
 int score = 0;
+int lives = 5;
 
 const uint8_t logo[] PROGMEM =
 {
@@ -230,6 +234,7 @@ void updategame()
         (!line.h && gb.collideRectRect(line.x, line.y - line.l, 1, 2 * line.l + 1, boards[line.board]->balls[i]->x, boards[line.board]->balls[i]->y, BALLSIZE, BALLSIZE)))
       {
         //lose life
+        lives--;
         ///if no life : game over
         line.state = LINEIDLE;
         return;
@@ -321,9 +326,25 @@ void updategame()
 void loop(){
   if(gb.update())
   {
-    updategame();
-    manageinputs();
-    draw();
+    if (lives <= 0)
+    {
+      gb.display.cursorX = (LCDWIDTH - 53) / 2;
+      gb.display.cursorY = 10;
+      gb.display.setFont(font5x7);
+      gb.display.print("Game Over");
+
+      gb.display.cursorX = (LCDWIDTH - 29) / 2;
+      gb.display.cursorY = 30;
+      gb.display.println("Score");
+      gb.display.cursorX = (LCDWIDTH - (6*ceil(log10(score)) - 1)) / 2;
+      gb.display.println(score);
+    }
+    else
+    {
+      updategame();
+      manageinputs();
+      draw();
+    }
   }
 }
 
