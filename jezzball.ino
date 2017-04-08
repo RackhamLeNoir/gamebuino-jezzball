@@ -1,4 +1,5 @@
 #include <math.h>
+#include <EEPROM.h>
 #include <SPI.h>
 #include <Gamebuino.h>
 Gamebuino gb;
@@ -47,6 +48,7 @@ struct line_t {
 };
 line_t line;
 
+unsigned int highscore = 0;
 unsigned int score = 0;
 unsigned int lives = 5;
 unsigned int level = 0;
@@ -139,6 +141,11 @@ void setup()
   gb.titleScreen(F("JezzBall"), logo);
   gb.pickRandomSeed();
 
+  if (EEPROM.read(0) == 0xff)
+    EEPROM.put(0, 0x0000);
+  else
+    EEPROM.get(0, highscore);
+
   preparelevel();
 }
 
@@ -221,11 +228,24 @@ void drawgameover()
   gb.display.setFont(font5x7);
   gb.display.print("Game Over");
 
-  gb.display.cursorX = (LCDWIDTH - 29) / 2;
-  gb.display.cursorY = 30;
-  gb.display.println("Score");
-  gb.display.cursorX = (LCDWIDTH - (6 * numlength(score) - 1)) / 2;
-  gb.display.println(score);
+  if (score > highscore)
+  {
+    gb.display.cursorX = (LCDWIDTH - 59) / 2;
+    gb.display.cursorY = 30;
+    gb.display.println("High score");
+    gb.display.cursorX = (LCDWIDTH - (6 * (numlength(score) + 2) - 1)) / 2;
+    gb.display.print("\17");
+    gb.display.print(score);
+    gb.display.print("\17");
+  }
+  else
+  {
+    gb.display.cursorX = (LCDWIDTH - 29) / 2;
+    gb.display.cursorY = 30;
+    gb.display.println("Score");
+    gb.display.cursorX = (LCDWIDTH - (6 * numlength(score) - 1)) / 2;
+    gb.display.println(score);
+  }
 }
 
 void drawlevelclear()
@@ -282,6 +302,11 @@ void inputsgameover()
 {
   if (gb.buttons.pressed(BTN_A))
   {
+    if (score > highscore)
+    {
+      highscore = score;
+      EEPROM.put(0, highscore);
+    }
     score = 0;
     level = 0;
     lives = 5;
