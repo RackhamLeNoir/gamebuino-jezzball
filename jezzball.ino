@@ -47,13 +47,13 @@ struct line_t {
 };
 line_t line;
 
-int score = 0;
-int lives = 5;
-int numballs = 0;
-int levelscore = 0;
+unsigned int score = 0;
+unsigned int lives = 5;
+unsigned int level = 0;
+unsigned int levelscore = 0;
 #define BOARDWIDTH (LCDWIDTH - 22)
 #define BOARDHEIGHT LCDHEIGHT
-
+#define LEVELCLEAR 2300//((int)((unsigned long)(BOARDWIDTH * BOARDHEIGHT) * 75/ 100))
 
 const uint8_t logo[] PROGMEM =
 {
@@ -92,9 +92,10 @@ const uint8_t logo[] PROGMEM =
 
 void preparelevel()
 {
-  if (numballs < MAXBALLS)
-    numballs++;
+  level++;
   levelscore = 0;
+
+  int numballs = constrain(level, 1, MAXBALLS);
      
   ball_t **balls = (ball_t **)malloc(numballs * sizeof(ball_t *));
   memset(balls, 0, sizeof(balls));
@@ -102,7 +103,7 @@ void preparelevel()
   for (i = 0 ; i < numballs ; i++)
   {
     balls[i] = (ball_t *)malloc(sizeof(ball_t));
-    *(balls[i]) = { (int)random(BOARDWIDTH) - BALLSIZE, (int)random(BOARDHEIGHT) - BALLSIZE, 1, 1 };
+    *(balls[i]) = { (int)random(BOARDWIDTH) - BALLSIZE + 1, (int)random(BOARDHEIGHT) - BALLSIZE + 1, 1, 1 };
   }
 
   //each board has at least one ball
@@ -117,11 +118,25 @@ void preparelevel()
   line = { LINEIDLE, 0, 0, 0, 0, 0};
 }
 
+void clearlevel()
+{
+  int numballs = constrain(level, 1, MAXBALLS);
+  int i, j;
+  for (i = 0 ; i < nbboards ; i++)
+  {
+    for (j = 0 ; j < boards[i]->nbballs ; j++)
+      free(boards[i]->balls[j]);
+    free(boards[i]->balls);
+    free(boards[i]);
+  }
+  free(boards);
+  line.state = LINEIDLE;
+}
+
 void setup()
 {
   gb.begin();
   gb.titleScreen(F("JezzBall"), logo);
-  //gb.display.persistence = false;
   gb.pickRandomSeed();
 
   preparelevel();
@@ -136,7 +151,7 @@ int numlength(int number)
   return floor(log10(number)) + 2;
 }
 
-void draw()
+void drawgame()
 {
   int i, j;
   gb.display.fillScreen(BLACK);
@@ -145,18 +160,21 @@ void draw()
   gb.display.fillRect(LCDWIDTH - 21, 0, 21, LCDHEIGHT);
   gb.display.setColor(BLACK);
   gb.display.cursorX = LCDWIDTH - 20;
-  gb.display.cursorY = 5;
+  gb.display.cursorY = 1;
   gb.display.setFont(font3x5);
+  gb.display.println("Level");
+  gb.display.cursorX = LCDWIDTH - 4 * numlength(level);
+  gb.display.println(level);
+  gb.display.cursorX = LCDWIDTH - 20;
   gb.display.println("Score");
   gb.display.cursorX = LCDWIDTH - 4 * numlength(score);
   gb.display.println(score);
   gb.display.cursorX = LCDWIDTH - 20;
-  gb.display.cursorY = 20;
   for (i = 0 ; i < lives ; i++)
     gb.display.print("\03");
   unsigned long percent = (unsigned long)levelscore * 100 / (BOARDWIDTH * BOARDHEIGHT);
   gb.display.cursorX = LCDWIDTH - 4 * (numlength(percent) + 1);
-  gb.display.cursorY = 30;
+  gb.display.cursorY = 31;
   gb.display.print(percent);
   gb.display.print("%");
 
@@ -196,7 +214,37 @@ void draw()
   }
 }
 
-void manageinputs()
+void drawgameover()
+{
+  gb.display.cursorX = (LCDWIDTH - 53) / 2;
+  gb.display.cursorY = 10;
+  gb.display.setFont(font5x7);
+  gb.display.print("Game Over");
+
+  gb.display.cursorX = (LCDWIDTH - 29) / 2;
+  gb.display.cursorY = 30;
+  gb.display.println("Score");
+  gb.display.cursorX = (LCDWIDTH - (6 * numlength(score) - 1)) / 2;
+  gb.display.println(score);
+}
+
+void drawlevelclear()
+{
+  gb.display.cursorX = (LCDWIDTH - 29) / 2;
+  gb.display.cursorY = 5;
+  gb.display.setFont(font5x7);
+  gb.display.println("Level");
+  gb.display.cursorX = (LCDWIDTH - (6 * numlength(level) - 1)) / 2;
+  gb.display.println(level);
+  gb.display.cursorX = (LCDWIDTH - 41) / 2;
+  gb.display.println("cleared");
+
+  gb.display.cursorX = (LCDWIDTH - 41) / 2;
+  gb.display.cursorY = 35;
+  gb.display.println("Press \25");
+}
+
+void inputsgame()
 {
   if (gb.buttons.pressed(BTN_A))
     cursor.h = !cursor.h;
@@ -228,6 +276,27 @@ void manageinputs()
 
   cursor.x = constrain(cursor.x, 0, LCDWIDTH - 1);
   cursor.y = constrain(cursor.y, 0, LCDHEIGHT - 1);
+}
+
+void inputsgameover()
+{
+  if (gb.buttons.pressed(BTN_A))
+  {
+    score = 0;
+    level = 0;
+    lives = 5;
+    clearlevel();
+    preparelevel();
+  }
+}
+
+void inputslevelclear()
+{
+  if (gb.buttons.pressed(BTN_A))
+  {
+    clearlevel();
+    preparelevel();
+  }
 }
 
 void updategame()
@@ -289,6 +358,7 @@ void updategame()
     ball_t **tempballs = boards[line.board]->balls;
     int tempnbballs = boards[line.board]->nbballs;
     board_t *newboard;
+    int numballs = constrain(level, 1, MAXBALLS);
 
     //finished horizontal line
     if (line.h && line.x - line.l <= boards[line.board]->x && line.x + line.l >= boards[line.board]->x + boards[line.board]->w)
@@ -385,22 +455,19 @@ void loop(){
   {
     if (lives <= 0)
     {
-      gb.display.cursorX = (LCDWIDTH - 53) / 2;
-      gb.display.cursorY = 10;
-      gb.display.setFont(font5x7);
-      gb.display.print("Game Over");
-
-      gb.display.cursorX = (LCDWIDTH - 29) / 2;
-      gb.display.cursorY = 30;
-      gb.display.println("Score");
-      gb.display.cursorX = (LCDWIDTH - (6 * numlength(score) - 1)) / 2;
-      gb.display.println(score);
+      drawgameover();
+      inputsgameover();
+    }
+    else if (levelscore >= LEVELCLEAR)
+    {
+      drawlevelclear();
+      inputslevelclear();
     }
     else
     {
       updategame();
-      manageinputs();
-      draw();
+      inputsgame();
+      drawgame();
     }
   }
 }
