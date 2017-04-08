@@ -2,7 +2,7 @@
 
 [GameBuino](http://gamebuino.com) implementation of the [Jezzball](https://en.wikipedia.org/wiki/JezzBall) game. This is a tribute to the [TI-89 implementation](http://www.ticalc.org/archives/files/fileinfo/121/12158.html) I used to play for hours.
 
-![JezzBall screenshot](screenshot.png?raw=true "JezzBall screenshot")
+![JezzBall screenshot](jezzball.gif?raw=true "JezzBall screenshot")
 
 # Playing the game
 
