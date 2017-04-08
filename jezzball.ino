@@ -138,8 +138,9 @@ void clearlevel()
 void setup()
 {
   gb.begin();
-  gb.titleScreen(F("JezzBall"), logo);
+  gb.titleScreen(F(""), logo);
   gb.pickRandomSeed();
+  gb.battery.show = false;
 
   if (EEPROM.read(0) == 0xff)
     EEPROM.put(0, 0x0000);
@@ -285,6 +286,8 @@ void inputsgame()
       }
     }
   }
+  if(gb.buttons.pressed(BTN_C))
+    gb.titleScreen(F(""), logo);
   if (gb.buttons.repeat(BTN_UP, 1))
     cursor.y -= 1;
   else if (gb.buttons.repeat(BTN_DOWN, 1))
@@ -313,6 +316,8 @@ void inputsgameover()
     clearlevel();
     preparelevel();
   }
+  if(gb.buttons.pressed(BTN_C))
+    gb.titleScreen(F(""), logo);
 }
 
 void inputslevelclear()
@@ -322,6 +327,8 @@ void inputslevelclear()
     clearlevel();
     preparelevel();
   }
+  if(gb.buttons.pressed(BTN_C))
+    gb.titleScreen(F(""), logo);
 }
 
 void updategame()
@@ -411,9 +418,11 @@ void updategame()
       if ((line.h && gb.collideRectRect(line.x - line.l, line.y, 2 * line.l + 1, 1, boards[line.board]->balls[i]->x, boards[line.board]->balls[i]->y, BALLSIZE, BALLSIZE)) || 
         (!line.h && gb.collideRectRect(line.x, line.y - line.l, 1, 2 * line.l + 1, boards[line.board]->balls[i]->x, boards[line.board]->balls[i]->y, BALLSIZE, BALLSIZE)))
       {
-        //lose life
+        if (line.h)
+          boards[line.board]->balls[i]->vy *= -1;
+        else
+          boards[line.board]->balls[i]->vx *= -1;
         lives--;
-        ///if no life : game over
         line.state = LINEIDLE;
         return;
       }
