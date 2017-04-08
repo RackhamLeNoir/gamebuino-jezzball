@@ -121,14 +121,14 @@ void draw()
   {
     if (line.h)
     {
-      int pos = constrain(line.x - line.l, 0, LCDWIDTH - 1);
-      int width = constrain(2 * line.l + 1, 0, LCDWIDTH);
+      int pos = constrain(line.x - line.l, boards[line.board]->x, boards[line.board]->x + boards[line.board]->w - 1);
+      int width = constrain(2 * line.l + 1, 0, boards[line.board]->w - (pos - boards[line.board]->x));
       gb.display.drawFastHLine(pos, line.y, width);
     }
     else
     {
-      int pos = constrain(line.y - line.l, 0, LCDHEIGHT - 1);
-      int width = constrain(2 * line.l + 1, 0, LCDHEIGHT);
+      int pos = constrain(line.y - line.l, boards[line.board]->y, boards[line.board]->y + boards[line.board]->h - 1);
+      int width = constrain(2 * line.l + 1, 0, boards[line.board]->h - (pos - boards[line.board]->y));
       gb.display.drawFastVLine(line.x, pos, width);
     }
   }
