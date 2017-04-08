@@ -248,7 +248,7 @@ void inputsgame()
 {
   if (gb.buttons.pressed(BTN_A))
     cursor.h = !cursor.h;
-  if (gb.buttons.pressed(BTN_B))
+  if (gb.buttons.pressed(BTN_B) && line.state == LINEIDLE)
   {
     int i;
     for (i = 0 ; i < nbboards ; i++)
@@ -274,8 +274,8 @@ void inputsgame()
   else if (gb.buttons.repeat(BTN_RIGHT, 1))
     cursor.x += 1;
 
-  cursor.x = constrain(cursor.x, 0, LCDWIDTH - 1);
-  cursor.y = constrain(cursor.y, 0, LCDHEIGHT - 1);
+  cursor.x = constrain(cursor.x, 0, BOARDWIDTH - 1);
+  cursor.y = constrain(cursor.y, 0, BOARDHEIGHT - 1);
 }
 
 void inputsgameover()
@@ -301,8 +301,8 @@ void inputslevelclear()
 
 void updategame()
 {
-  int i, j;
-  ball_t *ball;
+  int i, j, k;
+  ball_t *ball, *ball2;
   //move balls
   for (i = 0 ; i < nbboards ; i++)
   {
@@ -313,25 +313,64 @@ void updategame()
       ball->y = ball->y + ball->vy;
 
       //bouncings with board
+      bool bounced = false;
       if (ball->x < boards[i]->x)
       {
-       ball->vx = -ball->vx;
+        ball->vx = -ball->vx;
+        bounced = true;
         gb.sound.playTick();
       }
       else if ((ball->x + BALLSIZE) > boards[i]->x + boards[i]->w)
       {
         ball->vx = -ball->vx;
+        bounced = true;
         gb.sound.playTick();
       }
       if (ball->y < boards[i]->y)
       {
         ball->vy = -ball->vy;
+        bounced = true;
         gb.sound.playTick();
       }
       else if ((ball->y + BALLSIZE) > boards[i]->y + boards[i]->h)
       {
         ball->vy = -ball->vy;
+        bounced = true;
         gb.sound.playTick();
+      }
+      //we do not bounce if against a wall
+      if (!bounced)
+      {
+        for (k = j+1 ; k < boards[i]->nbballs ; k++)
+        {
+          ball2 = boards[i]->balls[k];
+          if (!gb.collideRectRect(ball->x, ball->y, BALLSIZE, BALLSIZE, ball2->x, ball2->y, BALLSIZE, BALLSIZE))
+            continue;
+          //ball on the right
+          if (ball->vx > 0 && ball2->x == ball->x + BALLSIZE - 1)
+          {
+            ball->vx = -1;
+            ball2->vx = 1;
+          }
+          //ball on the left
+          else if (ball->vx < 0 && ball->x == ball2->x + BALLSIZE - 1)
+          {
+            ball->vx = 1;
+            ball2->vx = -1;
+          }
+          //ball on the top
+          if (ball->vy > 0 && ball2->y == ball->y + BALLSIZE - 1)
+          {
+            ball->vy = -1;
+            ball2->vy = 1;
+          }
+          //ball on the bottom
+          else if (ball->vy < 0 && ball->y == ball2->y + BALLSIZE - 1)
+          {
+            ball->vy = 1;
+            ball2->vy = -1;
+          }
+        }
       }
     }
   }
@@ -417,15 +456,31 @@ void updategame()
     free(tempballs);
     if (newboard->nbballs == 0)
     {
-      score += newboard->w * newboard->h;
-      levelscore += newboard->w * newboard->h;
+      if (line.h)
+      {
+        score += newboard->w * (newboard->h + 1);
+        levelscore += newboard->w * (newboard->h + 1);
+      }
+      else
+      {
+        score += (newboard->w + 1) * newboard->h;
+        levelscore += (newboard->w + 1) * newboard->h;
+      }
       free(newboard->balls);
       free(newboard);
     }
     else if (boards[line.board]->nbballs == 0)
     {
-      score += boards[line.board]->w * boards[line.board]->h;
-      levelscore += boards[line.board]->w * boards[line.board]->h;
+      if (line.h)
+      {
+        score += boards[line.board]->w * (boards[line.board]->h + 1);
+        levelscore += boards[line.board]->w * (boards[line.board]->h + 1);
+      }
+      else
+      {
+        score += (boards[line.board]->w + 1) * boards[line.board]->h;
+        levelscore += (boards[line.board]->w + 1) * boards[line.board]->h;
+      }
       free(boards[line.board]->balls);
       free(boards[line.board]);
       boards[line.board] = newboard;
