@@ -8,7 +8,7 @@
 
 You need a GameBuino or an emulator.
 
-Refer to the [GameBuino](http://gamebuino.com/wiki/index.php?title=Getting_started#Get_a_Gamebuino) homepage, or if you like making things, I advise you the [MakerBuino kit](http://www.makerbuino.com/). There is a [Kickstater campaign](https://www.kickstarter.com/projects/albertgajsak/makerbuino-a-diy-game-console) running until April 18 2017.
+Refer to the [GameBuino](http://gamebuino.com/wiki/index.php?title=Getting_started#Get_a_Gamebuino) homepage, or if you like making things, I advise you the [MakerBuino kit](http://www.makerbuino.com/).
 
 The GameBuino homepage presents a [collection of emulators](http://gamebuino.com/wiki/index.php?title=Emulators). I used [gbsim](http://gamebuino.com/wiki/index.php?title=Emulators#gbsim) for my development.
 
