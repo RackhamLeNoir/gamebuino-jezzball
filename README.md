@@ -18,4 +18,4 @@ You need the [Arduino IDE](https://www.arduino.cc/en/Main/Software), and the Gam
 
 # Issues
 
-For the moment, I only tested the game with an emulator. I will be able to test it on hardware when I will receive my MakerBuino from the Kickstarter campaign (hopefully in May 2017). Please feel free to tell me if you have any trouble playing the game, either with an emulator or a physical console.
+Please feel free to tell me if you have any trouble playing the game, either with an emulator or a physical console.
